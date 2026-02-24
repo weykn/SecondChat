@@ -62,7 +62,7 @@ public abstract class MixinChatScreen extends Screen {
 
     @WrapOperation(method = {"mouseClicked"}, at = @At(value = "NEW", target = "(Lnet/minecraft/client/gui/Font;II)Lnet/minecraft/client/gui/ActiveTextCollector$ClickableStyleFinder;"))
     private ActiveTextCollector.ClickableStyleFinder clickSecondChat(Font font, int mouseX, int mouseY, Operation<ActiveTextCollector.ClickableStyleFinder> original) {
-        if (secondChat$mainChatFocused) {
+        if (!secondChat$mainChatFocused) {
             mouseX = secondChat$fixMouseX(mouseX);
         }
 
