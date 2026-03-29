@@ -20,7 +20,6 @@ package de.florianreuth.secondchat.filter;
 
 import de.florianreuth.secondchat.SecondChat;
 import net.minecraft.ChatFormatting;
-import net.minecraft.SharedConstants;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
