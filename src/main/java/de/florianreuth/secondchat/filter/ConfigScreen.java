@@ -36,14 +36,18 @@ public final class ConfigScreen extends Screen {
     private static final int RED_TRANSPARENT = 0x80FF0000;
     private static final int PADDING = 3;
 
-    // They sum up to 300
-    private static final int TEXT_FIELD_WIDTH = 150;
-    private static final int FILTER_BUTTON_WIDTH = 130;
+    private static final int TEXT_FIELD_WIDTH = 120;
+    private static final int SERVER_FIELD_WIDTH = 100;
+    private static final int FILTER_BUTTON_WIDTH = 60;
     private static final int ADD_BUTTON_WIDTH = 20;
+
+    private static final float COL_FILTER_PCT = 0.55f;
+    private static final float COL_SERVER_PCT = 0.30f;
 
     private final Screen parent;
 
     private EditBox editBox;
+    private EditBox serverBox;
     private Button addButton;
     private FilterType filterType = FilterType.CONTAINS;
 
@@ -61,17 +65,23 @@ public final class ConfigScreen extends Screen {
             this.minecraft,
             width,
             height,
-            PADDING + PADDING + (font.lineHeight + 2) * PADDING /* title is 2 */,
+            PADDING + PADDING + (font.lineHeight + 2) * PADDING,
             30,
             font.lineHeight + ListEntry.INNER_PADDING * 4
         ));
 
         final int y = height - Button.DEFAULT_HEIGHT - PADDING - 1;
-        int x = width / 2 - TEXT_FIELD_WIDTH - PADDING - PADDING;
+        int x = width / 2 - (TEXT_FIELD_WIDTH + PADDING + SERVER_FIELD_WIDTH + PADDING + FILTER_BUTTON_WIDTH + PADDING + ADD_BUTTON_WIDTH) / 2;
+
         editBox = addRenderableWidget(new EditBox(this.font, x, y, TEXT_FIELD_WIDTH, Button.DEFAULT_HEIGHT, Component.empty()));
         editBox.setMaxLength(Integer.MAX_VALUE);
 
         x += TEXT_FIELD_WIDTH + PADDING;
+        serverBox = addRenderableWidget(new EditBox(this.font, x, y, SERVER_FIELD_WIDTH, Button.DEFAULT_HEIGHT, Component.empty()));
+        serverBox.setMaxLength(253);
+        serverBox.setHint(Component.literal("* (all servers)").withStyle(ChatFormatting.DARK_GRAY));
+
+        x += SERVER_FIELD_WIDTH + PADDING;
         addRenderableWidget(Button
             .builder(getFilterTypeText(filterType), button -> {
                 filterType = FilterType.values()[(filterType.ordinal() + 1) % FilterType.values().length];
@@ -84,7 +94,8 @@ public final class ConfigScreen extends Screen {
         x += FILTER_BUTTON_WIDTH + PADDING;
         addButton = addRenderableWidget(Button
             .builder(Component.literal("+"), button -> {
-                SecondChat.instance().add(new FilterRule(editBox.getValue(), filterType));
+                final String server = serverBox.getValue().isBlank() ? "*" : serverBox.getValue();
+                SecondChat.instance().add(new FilterRule(editBox.getValue(), server, filterType));
                 minecraft.setScreen(new ConfigScreen(parent));
             })
             .pos(x, y)
@@ -115,8 +126,9 @@ public final class ConfigScreen extends Screen {
             return;
         }
 
+        final String server = serverBox.getValue().isBlank() ? "*" : serverBox.getValue();
         SecondChat.instance().rules().stream()
-            .filter(rule -> rule.value().equals(editBox.getValue()) && rule.type() == filterType)
+            .filter(rule -> rule.value().equals(editBox.getValue()) && rule.type() == filterType && rule.server().equals(server))
             .findAny()
             .ifPresentOrElse(filterRule -> this.alreadyAdded = filterRule, () -> this.alreadyAdded = null);
         addButton.active = alreadyAdded == null;
@@ -127,10 +139,28 @@ public final class ConfigScreen extends Screen {
         super.extractRenderState(graphics, mouseX, mouseY, partialTick);
 
         final Matrix3x2fStack pose = graphics.pose();
+
         pose.pushMatrix();
         pose.scale(2.0F, 2.0F);
         graphics.text(font, title, this.width / 4 - font.width(title) / 2, 5, -1, true);
         pose.popMatrix();
+
+        final int headerY = PADDING + PADDING + (font.lineHeight + 2) * PADDING - font.lineHeight - 2;
+        final int contentWidth = new SlotList(minecraft, width, height,
+            PADDING + PADDING + (font.lineHeight + 2) * PADDING, 30,
+            font.lineHeight + ListEntry.INNER_PADDING * 4).getRowWidth();
+        final int listX = width / 2 - contentWidth / 2;
+
+        final int filterColWidth = (int) (contentWidth * COL_FILTER_PCT);
+        final int serverColWidth = (int) (contentWidth * COL_SERVER_PCT);
+
+        final Component filterHeader = Component.literal("FILTER").withStyle(ChatFormatting.GOLD);
+        final Component serverHeader = Component.literal("SERVER").withStyle(ChatFormatting.GOLD);
+        final Component typeHeader = Component.literal("TYPE").withStyle(ChatFormatting.GOLD);
+
+        graphics.text(font, filterHeader, listX + ListEntry.INNER_PADDING, headerY, -1, false);
+        graphics.text(font, serverHeader, listX + filterColWidth + serverColWidth / 2 - font.width(serverHeader) / 2, headerY, -1, false);
+        graphics.text(font, typeHeader, listX + contentWidth - font.width(typeHeader) - ListEntry.INNER_PADDING * 2, headerY, -1, false);
     }
 
     public class SlotList extends ObjectSelectionList<ListEntry> {
@@ -148,7 +178,6 @@ public final class ConfigScreen extends Screen {
 
         @Override
         protected void extractSelection(final GuiGraphicsExtractor graphics, final ListEntry entry, final int outlineColor) {
-            // Remove selection box
         }
     }
 
@@ -180,18 +209,36 @@ public final class ConfigScreen extends Screen {
             final int width = getContentWidth();
             final int height = getContentHeight();
 
+            final int filterColWidth = (int) (width * COL_FILTER_PCT);
+            final int serverColWidth = (int) (width * COL_SERVER_PCT);
+            final int serverColX = filterColWidth;
+            final int typeColX = filterColWidth + serverColWidth;
+
             final int color = ConfigScreen.this.alreadyAdded == rule ? RED_TRANSPARENT : Integer.MIN_VALUE;
             pose.pushMatrix();
             pose.translate(getContentX(), getContentY());
             graphics.fill(0, 0, width - INNER_PADDING * 2, height, color);
 
-            final MutableComponent base = Component.literal(rule.value());
-            graphics.text(font, hovered ? base.withStyle(ChatFormatting.ITALIC, ChatFormatting.RED) : base, INNER_PADDING, INNER_PADDING, -1);
+            String filterValue = rule.value();
+            if (font.width(filterValue) > filterColWidth - INNER_PADDING * 2) {
+                while (font.width(filterValue + "...") > filterColWidth - INNER_PADDING * 2 && !filterValue.isEmpty()) {
+                    filterValue = filterValue.substring(0, filterValue.length() - 1);
+                }
+                filterValue += "...";
+            }
+            final MutableComponent base = Component.literal(filterValue);
+            final Component filterText = hovered ? base.withStyle(ChatFormatting.ITALIC, ChatFormatting.RED) : base;
+            graphics.text(font, filterText, INNER_PADDING, INNER_PADDING, -1);
+
+            final String serverDisplay = rule.server() == null || rule.server().isBlank() ? "*" : rule.server();
+            final Component serverText = Component.literal(serverDisplay)
+                .withStyle(serverDisplay.equals("*") ? ChatFormatting.DARK_GRAY : ChatFormatting.WHITE);
+            graphics.text(font, serverText, serverColX + serverColWidth / 2 - font.width(serverText) / 2, INNER_PADDING, -1);
 
             final Component narration = Component.literal("").append(getNarration()).withStyle(ChatFormatting.GOLD);
             graphics.text(font, narration, width - font.width(narration) - INNER_PADDING * 2, INNER_PADDING, -1);
+
             pose.popMatrix();
         }
     }
-
 }

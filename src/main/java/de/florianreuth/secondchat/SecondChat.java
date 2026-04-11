@@ -81,15 +81,17 @@ public final class SecondChat implements ClientModInitializer {
         save();
     }
 
-    public boolean matches(final String input) {
-        return rules.stream().anyMatch(rule -> switch (rule.type()) {
-            case EQUALS -> input.equals(rule.value());
-            case EQUALS_IGNORE_CASE -> input.equalsIgnoreCase(rule.value());
-            case STARTS_WITH -> input.startsWith(rule.value());
-            case ENDS_WITH -> input.endsWith(rule.value());
-            case CONTAINS -> input.contains(rule.value());
-            case REGEX -> input.matches(rule.value());
-        });
+    public boolean matches(final String input, final String currentServer) {
+        return rules.stream()
+            .filter(rule -> rule.matchesServer(currentServer))
+            .anyMatch(rule -> switch (rule.type()) {
+                case EQUALS -> input.equals(rule.value());
+                case EQUALS_IGNORE_CASE -> input.equalsIgnoreCase(rule.value());
+                case STARTS_WITH -> input.startsWith(rule.value());
+                case ENDS_WITH -> input.endsWith(rule.value());
+                case CONTAINS -> input.contains(rule.value());
+                case REGEX -> input.matches(rule.value());
+            });
     }
 
     public List<FilterRule> rules() {

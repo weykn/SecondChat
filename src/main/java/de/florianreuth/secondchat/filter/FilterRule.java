@@ -18,5 +18,8 @@
 
 package de.florianreuth.secondchat.filter;
 
-public record FilterRule(String value, FilterType type) {
+public record FilterRule(String value, String server, FilterType type) {
+    public boolean matchesServer(final String currentServer) {
+        return server == null || server.isBlank() || server.equals("*") || server.equalsIgnoreCase(currentServer);
+    }
 }

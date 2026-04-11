@@ -39,7 +39,11 @@ public abstract class MixinChatComponent {
     @Inject(method = "addMessage", at = @At("HEAD"), cancellable = true)
     public void proxyMessages(Component contents, MessageSignature signature, GuiMessageSource source, GuiMessageTag tag, CallbackInfo ci) {
         if ((Object) this == Minecraft.getInstance().gui.getChat()) {
-            final boolean cancel = SecondChat.instance().matches(contents.getString());
+            final String currentServer = Minecraft.getInstance().getCurrentServer() != null
+                ? Minecraft.getInstance().getCurrentServer().ip
+                : "*";
+
+            final boolean cancel = SecondChat.instance().matches(contents.getString(), currentServer);
             if (!cancel) {
                 return;
             }
